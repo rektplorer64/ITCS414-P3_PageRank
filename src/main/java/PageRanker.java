@@ -1,6 +1,14 @@
-//Name(s):
-//ID
-//Section
+/*
+This Code is modified by Section 1 Students of Mahidol University, the Faculty of ICT, 2019
+as part of the third project of ITCS414 - Information Retrieval and Storage.
+
+Project 3: PageRank
+
+The group consists of
+    1. Krittin      Chatrinan       ID 6088022
+    2. Anon         Kangpanich      ID 6088053
+    3. Tanawin      Wichit          ID 6088221
+ */
 
 import java.io.File;
 import java.io.IOException;
@@ -17,12 +25,40 @@ import java.util.stream.Stream;
  */
 public class PageRanker {
 
+    /**
+     * A boolean specifies Verbosity of the program
+     */
+    private boolean debugVerbose = false;
+
+    /**
+     * The constant specifies Damping Factor for PageRank
+     */
     private static final double DAMPING_FACTOR = 0.85;
 
+    /**
+     * Mapping between Page Id (namely A) and a Set of Page Ids that link to A.
+     */
     private HashMap<Integer, HashSet<Integer>> graphDataStore = new HashMap<>();
 
-    private HashMap<Integer, Page> allPages = new HashMap<>();
-    private boolean debugVerbose = false;
+    /**
+     * Mapping between Page Id and its associate Page Object
+     */
+    private HashMap<Integer, Page> pageMap = new HashMap<>();
+
+    /**
+     * The Limit constant for convergence count
+     */
+    private final int CONVERGENCE_ITER_COUNT_LIMIT = 4;
+
+    /**
+     * The initial convergence count
+     */
+    private int convergenceIterCount = 1;
+
+    /**
+     * Temporary Perplexity for determining convergences
+     */
+    private double lastPerplexity = 0;
 
     /**
      * This class reads the direct graph stored in the file "inputLinkFilename" into memory.
@@ -31,36 +67,60 @@ public class PageRanker {
      * <p>
      * Where pid_1, pid_2, ..., pid_n are the page IDs of the page having links to page pid_1.
      * You can assume that a page ID is an integer.
+     *
+     * @param inputLinkFilename input file that contains page Id and its linked
      */
     public void loadData(String inputLinkFilename) {
+
+        // Data stream for String
         Stream<String> dataStream;
         try {
+            // Read from the file line-by-line using UTF-8 Character set
             dataStream = Files.lines(Paths.get(inputLinkFilename), StandardCharsets.UTF_8);
         } catch (IOException e) {
             e.printStackTrace();
             return;
         }
 
+        // For each line, splits the page Id
         dataStream.forEach(line -> {
+
+            // Split page Ids by white spaces
             String[] parts = line.split("\\s");
 
-            int key = Integer.parseInt(parts[0]);
+            // Parses the first part to an Integer -> This is the mainPageId.
+            int mainPageId = Integer.parseInt(parts[0]);
 
-            if (!allPages.containsKey(key)) {
-                allPages.put(key, new Page(key));
+            // If the page map does not contain the Page Id
+            if (!pageMap.containsKey(mainPageId)) {
+                // Put the Page Id into the map
+                pageMap.put(mainPageId, new Page(mainPageId));
             }
 
+            // Initializes empty set for Page Id that associates to the mainPageId
             HashSet<Integer> connectedNode = new HashSet<>();
+
+            // Iterates thru all Page Id that associates to the mainPageId
             for (int i = 1; i < parts.length; i++) {
+                // Parse each Page Id into an Integer
                 final int pageId = Integer.parseInt(parts[i]);
+
+                // Add the parsed integer into the set
                 connectedNode.add(pageId);
-                if (!allPages.containsKey(pageId)) {
-                    allPages.put(pageId, new Page(pageId));
+
+                // If the page map does not contain the Page Id
+                if (!pageMap.containsKey(pageId)) {
+                    // Put the Page Id into the map
+                    pageMap.put(pageId, new Page(pageId));
                 }
-                allPages.get(pageId).incrementOutLinkCount();
+
+                // Counts up the Out-Link of the Page Id by 1
+                // Out-Link means that if A links to P, Q, R, S, then A has 4 out-links.
+                pageMap.get(pageId).incrementOutLinkCount();
             }
 
-            graphDataStore.put(key, connectedNode);
+            // Put the Set into the Graph Map
+            graphDataStore.put(mainPageId, connectedNode);
         });
 
         // System.out.println(graphDataStore);
@@ -68,23 +128,27 @@ public class PageRanker {
 
     /**
      * This method will be called after the graph is loaded into the memory.
+     * <p>
      * This method initialize the parameters for the PageRank algorithm including
      * setting an initial weight to each page.
      */
     public void initialize() {
 
-        for (Map.Entry<Integer, Page> pageWeight : allPages.entrySet()) {
-            pageWeight.getValue().setPageRank(1 / (double) allPages.size());
+        // For every Page
+        for (Map.Entry<Integer, Page> pageWeight : pageMap.entrySet()) {
+            // Set an initial value
+            pageWeight.getValue().setPageRank(1 / (double) pageMap.size());
         }
 
         if (debugVerbose) {
-            System.out.println("TOTAL PAGES -> " + allPages.size());
+            System.out.println("TOTAL PAGES -> " + pageMap.size());
         }
     }
 
     /**
-     * Computes the perplexity of the current state of the graph. The definition
-     * of perplexity is given in the project specs.
+     * Computes the perplexity of the current state of the graph. The definition of perplexity is given in the project specs.
+     *
+     * @return perplexity value of the current
      */
     public double getPerplexity() {
         double entropy = 0;
@@ -93,11 +157,16 @@ public class PageRanker {
             System.out.println("getPerplexity()");
         }
 
-        for (Map.Entry<Integer, Page> pageWeight : allPages.entrySet()) {
+        // For each page inside the pageMap
+        for (Map.Entry<Integer, Page> pageWeight : pageMap.entrySet()) {
+            // Get the Page
             Page p = pageWeight.getValue();
+
             if (debugVerbose) {
                 System.out.println("\tPage " + p.getId() + " PR = " + p.getPageRank());
             }
+
+            // Calculate the Entropy and accumulate it
             entropy += p.getPageRank() * Math.log(p.getPageRank()) / Math.log(2);
         }
 
@@ -107,37 +176,44 @@ public class PageRanker {
         return Math.pow(2, entropy * -1);
     }
 
-    private final int CONVERGENCE_ITER_COUNT_LIMIT = 4;
-    private int convergenceIterCount = 1;
-    private double lastPerplexity = 0;
-
     /**
      * Returns true if the perplexity converges (hence, terminate the PageRank algorithm).
-     * Returns false otherwise (and PageRank algorithm continue to update the page scores).
+     * Otherwise, Returns false otherwise (and PageRank algorithm continue to update the page scores).
+     *
+     * @return whether the current state is converged or not
      */
     public boolean isConverge() {
+
+        // Calculate a new Perplexity
         double currentPerplexity = getPerplexity();
 
         if (debugVerbose) {
             System.out.println("isConverge() -> " + currentPerplexity + "\t\t\t" + lastPerplexity + " -> " + Math.floor(currentPerplexity) % 10 + ",\t" + Math.floor(lastPerplexity) % 10);
         }
 
+        // If the unit digit of old and new Perplexity is the same
         if (Math.floor(currentPerplexity) % 10 == Math.floor(lastPerplexity) % 10) {
+            // Counts up the convergence iteration count by 1
             convergenceIterCount++;
         } else {
+            // Reset the count back to 1
             convergenceIterCount = 1;
         }
 
+        // Make the new Perplexity an old one
         lastPerplexity = currentPerplexity;
 
+        // If the count equals to the LIMIT
         if (convergenceIterCount == CONVERGENCE_ITER_COUNT_LIMIT) {
+            // Reset the count back to 1
             convergenceIterCount = 1;
+
+            // The PageRank is converge now
             return true;
         }
 
         return false;
     }
-
 
     /**
      * The main method of PageRank algorithm.
@@ -165,35 +241,48 @@ public class PageRanker {
      * 3 	0.236
      * <p>
      * Where, for example, 0.1235 is the PageRank score of page 1.
+     *
+     * @param perplexityOutFilename the url of the output file that contains perplexity value from each iteration.
+     * @param prOutFilename         the url of the output file that contains the final PageRank score
      */
     public void runPageRank(String perplexityOutFilename, String prOutFilename) {
 
-        int totalPage = allPages.size();
+        int totalPage = pageMap.size();
 
         List<String> perplexities = new ArrayList<>();
         List<String> pageRankScores = new ArrayList<>();
         while (!isConverge()) {
+
+            // Calculate total sink P
             double sinkPageRank = 0;
 
             HashMap<Integer, Double> newPageRanks = new HashMap<>();
 
-            for (int pageId : allPages.keySet()) {
-                if (allPages.get(pageId).isSinkPage()) {
-                    sinkPageRank += allPages.get(pageId).getPageRank();
+            for (int pageId : pageMap.keySet()) {
+                if (pageMap.get(pageId).isSinkPage()) {
+                    sinkPageRank += pageMap.get(pageId).getPageRank();
                 }
             }
 
-            for (int pageId : allPages.keySet()) {
+            // For each Page in the pageMap
+            for (int pageId : pageMap.keySet()) {
+                // Teleportation
                 double newPageRank = (1 - DAMPING_FACTOR) / (double) totalPage;
+
+                // Spread remaining sink PR evenly
                 newPageRank += DAMPING_FACTOR * sinkPageRank / (double) totalPage;
 
                 if (debugVerbose) {
                     System.out.println("\nFinding the ones who link to " + pageId);
                 }
-                if (graphDataStore.get(pageId) != null && !graphDataStore.get(pageId).isEmpty()) {
-                    for (int linkedPage : graphDataStore.get(pageId)) {
-                        final Page incomingPage = allPages.get(linkedPage);
 
+                // If the graph does contain the pageId AND the Page being linked by other page(s).
+                if (graphDataStore.get(pageId) != null && !graphDataStore.get(pageId).isEmpty()) {
+                    // For each pages pointing to the page w/ id = pageId
+                    for (int linkedPage : graphDataStore.get(pageId)) {
+                        final Page incomingPage = pageMap.get(linkedPage);
+
+                        // Add share of PageRank from in-links
                         newPageRank += DAMPING_FACTOR * incomingPage.getPageRank() / (double) incomingPage.getOutLinkCount();
 
                         if (debugVerbose) {
@@ -206,34 +295,53 @@ public class PageRanker {
                     System.out.println("NewPageRank for " + pageId + " -> " + newPageRank + "\n");
                 }
 
+                // Collect the Page Rank associated with a Page Id for the final result
                 newPageRanks.put(pageId, newPageRank);
             }
 
-            // System.out.println("Iter: " + newPageRanks);
-            for (Map.Entry<Integer, Page> pageEntry : allPages.entrySet()) {
+            // For all pages, set a new rank.
+            for (Map.Entry<Integer, Page> pageEntry : pageMap.entrySet()) {
                 pageEntry.getValue().setPageRank(newPageRanks.get(pageEntry.getKey()));
             }
 
+            // Add a Perplexity to the Perplexities Map as a String
             perplexities.add(String.valueOf(getPerplexity()));
         }
 
-        for (Map.Entry<Integer, Page> pageEntry : allPages.entrySet()) {
+        // For all pages, add all PageRanks to the PageRank list.
+        for (Map.Entry<Integer, Page> pageEntry : pageMap.entrySet()) {
             pageRankScores.add(pageEntry.getKey() + " " + pageEntry.getValue().getPageRank());
         }
 
+        // Write Perplexities into the output file
         writeStringToFile(perplexityOutFilename, perplexities);
+
+        // Write PageRanks into the output file
         writeStringToFile(prOutFilename, pageRankScores);
     }
 
-
+    /**
+     * Write a List of Strings (1 Line per String) into a text file
+     *
+     * @param fileIdentifier Url of the file
+     * @param lines List of Strings to be written
+     */
     private void writeStringToFile(String fileIdentifier, List<String> lines) {
+
+        // Initialize the Path based on the Url
         Path file = Paths.get(fileIdentifier);
+
+        // Initialize the File based on the Url
         File f = new File(fileIdentifier);
 
+        // If the file exists
         if (f.exists()) {
+            // Delete the file
             f.delete();
         }
+
         try {
+            // Write the Given array into the file
             Files.write(file, lines, StandardCharsets.UTF_8);
         } catch (IOException e) {
             e.printStackTrace();
@@ -242,17 +350,28 @@ public class PageRanker {
 
     /**
      * Return the top K page IDs, whose scores are highest.
+     *
+     * @param K the maximum value of the ranked page Id results
+     * @return the ranked page Id results
      */
     public Integer[] getRankedPages(int K) {
-        ArrayList<Page> pageArrayList = new ArrayList<>(allPages.values());
+
+        // Copy the Pages from the pageMap
+        ArrayList<Page> pageArrayList = new ArrayList<>(pageMap.values());
+
+        // Sort the Pages by PageRank
         pageArrayList.sort(Page::compareTo);
 
+        // Determine the proper size for the result Array
         int arraySize = Math.min(K, pageArrayList.size());
 
+        // Initialize result array with the size equals to the previously determined num
         Integer[] topKResults = new Integer[arraySize];
 
+        // Slice the array from the first to the element with index equal to <the size - 1>
         List<Page> sortedSlicedResults = pageArrayList.subList(0, arraySize);
 
+        // Add all results into the result Integer array
         for (int i = 0; i < arraySize; i++) {
             topKResults[i] = sortedSlicedResults.get(i).getId();
         }
@@ -277,59 +396,82 @@ public class PageRanker {
         System.out.println("Processing time: " + estimatedTime + " seconds");
     }
 
-    public class Page implements Comparable {
+    /**
+     * A class that represents a Page
+     */
+    private static class Page implements Comparable {
 
+        /**
+         * Integer that represents Page Id
+         */
         private int id;
+
+        /**
+         * Double Precision value that represents PageRank value
+         */
         private double pageRank;
+
+        /**
+         * Integer that indicates how many links that THIS PAGE points to.
+         */
         private int outLinkCount = 0;
 
-        public Page(int id) {
+        /**
+         * Default constructor for Page class
+         * @param id
+         */
+        Page(int id) {
             this(id, 0.0);
         }
 
-        public Page(int id, double pageRank) {
+        /**
+         * Constructor for Page class
+         * @param id Page Id
+         * @param pageRank Page rank value
+         */
+        Page(int id, double pageRank) {
             this.id = id;
             this.pageRank = pageRank;
         }
 
-        public double getPageRank() {
+        double getPageRank() {
             return pageRank;
         }
 
-        public void setPageRank(double pageRank) {
+        void setPageRank(double pageRank) {
             this.pageRank = pageRank;
         }
 
-        public boolean isSinkPage() {
+        boolean isSinkPage() {
             return outLinkCount == 0;
         }
 
-        public int getId() {
+        int getId() {
             return id;
         }
 
-        public void setId(int id) {
-            this.id = id;
-        }
-
-        public int getOutLinkCount() {
+        int getOutLinkCount() {
             return outLinkCount;
         }
 
-        public void incrementOutLinkCount() {
+        /**
+         * Increment Out-Link Count by 1
+         */
+        void incrementOutLinkCount() {
             outLinkCount++;
-        }
-
-        public void setOutLinkCount(int outLinkCount) {
-            this.outLinkCount = outLinkCount;
         }
 
         @Override
         public int compareTo(Object o) {
-            if (!(o instanceof Page)){
+            if (!(o instanceof Page)) {
                 return -1;
             }
-            return Double.compare(((Page) o).pageRank, this.pageRank);
+
+            int rankComparison = Double.compare(((Page) o).pageRank, this.pageRank);
+            if (rankComparison == 0){
+                return this.id - ((Page) o).id;
+            }
+            return rankComparison;
         }
     }
 }
