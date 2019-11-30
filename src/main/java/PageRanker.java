@@ -4,6 +4,8 @@ as part of the third project of ITCS414 - Information Retrieval and Storage.
 
 Project 3: PageRank
 
+JAVA SDK Version 12+ is required to compile this source code.
+
 The group consists of
     1. Krittin      Chatrinan       ID 6088022
     2. Anon         Kangpanich      ID 6088053
@@ -28,7 +30,12 @@ public class PageRanker {
     /**
      * A boolean specifies Verbosity of the program
      */
-    private boolean debugVerbose = false;
+    private boolean DEBUG_VERBOSE = false;
+
+    /**
+     * A boolean that indicates whether the program will print PageRank to a file or not
+     */
+    private boolean DEBUG_PAGE_RANK_OUTPUT_FILE = false;
 
     /**
      * The constant specifies Damping Factor for PageRank
@@ -37,6 +44,8 @@ public class PageRanker {
 
     /**
      * Mapping between Page Id (namely A) and a Set of Page Ids that link to A.
+     * TODO: This data structure can be omitted and embed into Page Class.
+     *
      */
     private HashMap<Integer, HashSet<Integer>> graphDataStore = new HashMap<>();
 
@@ -140,7 +149,7 @@ public class PageRanker {
             pageWeight.getValue().setPageRank(1 / (double) pageMap.size());
         }
 
-        if (debugVerbose) {
+        if (DEBUG_VERBOSE) {
             System.out.println("TOTAL PAGES -> " + pageMap.size());
         }
     }
@@ -153,7 +162,7 @@ public class PageRanker {
     public double getPerplexity() {
         double entropy = 0;
 
-        if (debugVerbose) {
+        if (DEBUG_VERBOSE) {
             System.out.println("getPerplexity()");
         }
 
@@ -162,7 +171,7 @@ public class PageRanker {
             // Get the Page
             Page p = pageWeight.getValue();
 
-            if (debugVerbose) {
+            if (DEBUG_VERBOSE) {
                 System.out.println("\tPage " + p.getId() + " PR = " + p.getPageRank());
             }
 
@@ -170,7 +179,7 @@ public class PageRanker {
             entropy += p.getPageRank() * Math.log(p.getPageRank()) / Math.log(2);
         }
 
-        if (debugVerbose) {
+        if (DEBUG_VERBOSE) {
             System.out.println("Entropy = " + entropy);
         }
         return Math.pow(2, entropy * -1);
@@ -187,7 +196,7 @@ public class PageRanker {
         // Calculate a new Perplexity
         double currentPerplexity = getPerplexity();
 
-        if (debugVerbose) {
+        if (DEBUG_VERBOSE) {
             System.out.println("isConverge() -> " + currentPerplexity + "\t\t\t" + lastPerplexity + " -> " + Math.floor(currentPerplexity) % 10 + ",\t" + Math.floor(lastPerplexity) % 10);
         }
 
@@ -264,6 +273,7 @@ public class PageRanker {
                 }
             }
 
+
             // For each Page in the pageMap
             for (int pageId : pageMap.keySet()) {
                 // Teleportation
@@ -272,7 +282,7 @@ public class PageRanker {
                 // Spread remaining sink PR evenly
                 newPageRank += DAMPING_FACTOR * sinkPageRank / (double) totalPage;
 
-                if (debugVerbose) {
+                if (DEBUG_VERBOSE) {
                     System.out.println("\nFinding the ones who link to " + pageId);
                 }
 
@@ -285,13 +295,13 @@ public class PageRanker {
                         // Add share of PageRank from in-links
                         newPageRank += DAMPING_FACTOR * incomingPage.getPageRank() / (double) incomingPage.getOutLinkCount();
 
-                        if (debugVerbose) {
+                        if (DEBUG_VERBOSE) {
                             System.out.println("\tPage " + incomingPage.getId() + " has " + incomingPage.getOutLinkCount() + " pages it links to.");
                         }
                     }
                 }
 
-                if (debugVerbose) {
+                if (DEBUG_VERBOSE) {
                     System.out.println("NewPageRank for " + pageId + " -> " + newPageRank + "\n");
                 }
 
@@ -362,6 +372,15 @@ public class PageRanker {
         // Sort the Pages by PageRank
         pageArrayList.sort(Page::compareTo);
 
+        if (DEBUG_PAGE_RANK_OUTPUT_FILE){
+            // Print PageId along with PageRank Score into a file for DEBUGGING
+            ArrayList<String> lines = new ArrayList<>();
+            for (Page p : pageArrayList){
+                lines.add(p.getId() + "\t" + p.getPageRank());
+            }
+            writeStringToFile("RawSortedPageRank.txt", lines);
+        }
+
         // Determine the proper size for the result Array
         int arraySize = Math.min(K, pageArrayList.size());
 
@@ -383,8 +402,8 @@ public class PageRanker {
         long startTime = System.currentTimeMillis();
 
         PageRanker pageRanker = new PageRanker();
-        // pageRanker.loadData("citeseer.dat");
-        pageRanker.loadData("p3_testcase/test.dat");
+        pageRanker.loadData("citeseer.dat");
+        // pageRanker.loadData("p3_testcase/test.dat");
         pageRanker.initialize();
         pageRanker.runPageRank("perplexity.out", "pr_scores.out");
 
@@ -418,7 +437,7 @@ public class PageRanker {
 
         /**
          * Default constructor for Page class
-         * @param id
+         * @param id page Id
          */
         Page(int id) {
             this(id, 0.0);
@@ -463,11 +482,16 @@ public class PageRanker {
 
         @Override
         public int compareTo(Object o) {
+            // If the object is not an instance of Page class
             if (!(o instanceof Page)) {
+                // It is not comparable.
                 return -1;
             }
 
+            // Compare PageRank score in Descending Order manner
             int rankComparison = Double.compare(((Page) o).pageRank, this.pageRank);
+
+            // If both score is equal, compare them by Id instead
             if (rankComparison == 0){
                 return this.id - ((Page) o).id;
             }
