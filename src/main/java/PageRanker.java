@@ -24,6 +24,11 @@ import java.util.stream.Stream;
 /**
  * This class implements PageRank algorithm on simple graph structure.
  * Put your name(s), ID(s), and section here.
+ *
+ * A group of SECTION 1 students:
+ *     1. Krittin      Chatrinan       ID 6088022
+ *     2. Anon         Kangpanich      ID 6088053
+ *     3. Tanawin      Wichit          ID 6088221
  */
 public class PageRanker {
 
@@ -44,8 +49,7 @@ public class PageRanker {
 
     /**
      * Mapping between Page Id (namely A) and a Set of Page Ids that link to A.
-     * TODO: This data structure can be omitted and embed into Page Class.
-     *
+     * TODO: This data structure can be omitted and embed into the Page Class.
      */
     private HashMap<Integer, HashSet<Integer>> graphDataStore = new HashMap<>();
 
